@@ -12,9 +12,12 @@ export interface ProductAnalysis {
 }
 
 export class AIService {
+  private static API_URL = "https://api.openai.com/v1/chat/completions";
+  private static MODEL = "gpt-4o-mini";
+
   /**
-   * Analyzes products based on their category and price 
-   * and provides recommendations using a RAG-like approach
+   * Analyzes products based on their category and price
+   * and provides recommendations using real AI
    */
   static async analyzeProducts(products: Array<{
     id: string;
@@ -24,84 +27,128 @@ export class AIService {
     stock: string;
     status: string;
   }>): Promise<ProductAnalysis[]> {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
     // Show toast to indicate analysis is happening
     toast({
       title: "Analyzing products",
       description: `Processing ${products.length} products with AI`,
     });
-    
-    // Process each product to generate analysis
-    return products.map(product => {
-      // Extract numeric price (remove $ and convert to number)
+
+    // For safety, limit the number of concurrent API calls
+    const batchSize = 5;
+    const results: ProductAnalysis[] = [];
+
+    // Process in batches to avoid too many concurrent API calls
+    for (let i = 0; i < products.length; i += batchSize) {
+      const batch = products.slice(i, i + batchSize);
+      const batchPromises = batch.map(product => this.analyzeProduct(product));
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults);
+    }
+
+    return results;
+  }
+
+  /**
+   * Analyzes a single product using OpenAI API
+   */
+  private static async analyzeProduct(product: {
+    id: string;
+    name: string;
+    category: string;
+    price: string;
+    stock: string;
+    status: string;
+  }): Promise<ProductAnalysis> {
+    try {
+      const apiKey = prompt("Please enter your OpenAI API key:", "");
+      
+      if (!apiKey) {
+        throw new Error("API key is required to use real AI analysis");
+      }
+
+      const systemPrompt = `
+        You are a product pricing analyst specialized in software products. 
+        Analyze the following product details and provide:
+        1. A concise recommendation for pricing or marketing strategy (1-2 sentences max)
+        2. A confidence score between 0.0 and 1.0 for your recommendation
+        
+        Format your response as a valid JSON object with exactly these two fields:
+        {
+          "recommendation": "your recommendation text here",
+          "confidenceScore": 0.XX
+        }
+      `;
+
       const numericPrice = parseFloat(product.price.replace('$', ''));
       
-      // Determine price range category
-      let priceCategory: 'low' | 'medium' | 'high';
-      if (numericPrice < 300) {
-        priceCategory = 'low';
-      } else if (numericPrice < 500) {
-        priceCategory = 'medium';
-      } else {
-        priceCategory = 'high';
+      const userPrompt = `
+        Product: ${product.name}
+        Category: ${product.category}
+        Price: ${product.price} (numeric: ${numericPrice})
+        Status: ${product.status}
+        
+        Based on this information, what pricing or marketing recommendation would you make?
+        Remember to only return a valid JSON object with the recommendation and confidenceScore fields.
+      `;
+
+      const response = await fetch(this.API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: this.MODEL,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 150
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
       }
+
+      const data = await response.json();
       
-      // Generate recommendation based on category and price
-      let recommendation = '';
-      let confidenceScore = 0;
-      
-      // Security category logic
-      if (product.category === 'Security') {
-        if (priceCategory === 'high') {
-          recommendation = 'Optimal pricing for enterprise security solutions';
-          confidenceScore = 0.92;
-        } else if (priceCategory === 'medium') {
-          recommendation = 'Consider bundling with additional features to increase value perception';
-          confidenceScore = 0.85;
-        } else {
-          recommendation = 'Price appears below market average, potential for upselling';
-          confidenceScore = 0.78;
-        }
-      } 
-      // Authentication category logic
-      else if (product.category === 'Authentication') {
-        if (priceCategory === 'high') {
-          recommendation = 'Premium pricing justified for advanced auth features';
-          confidenceScore = 0.89;
-        } else if (priceCategory === 'medium') {
-          recommendation = 'Well positioned in market, highlight security compliance';
-          confidenceScore = 0.91;
-        } else {
-          recommendation = 'Consider promoting as entry-level solution with upgrade path';
-          confidenceScore = 0.82;
-        }
+      if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+        throw new Error("Unexpected API response format");
       }
-      // Integration category logic
-      else if (product.category === 'Integration') {
-        if (priceCategory === 'high') {
-          recommendation = 'High price justified if it offers extensive compatibility';
-          confidenceScore = 0.87;
-        } else if (priceCategory === 'medium') {
-          recommendation = 'Competitive pricing, emphasize ease of implementation';
-          confidenceScore = 0.88;
-        } else {
-          recommendation = 'Good entry point for customers with simple integration needs';
-          confidenceScore = 0.84;
-        }
+
+      // Parse the AI response as JSON
+      let aiResult;
+      try {
+        aiResult = JSON.parse(data.choices[0].message.content);
+      } catch (e) {
+        console.error("Failed to parse AI response:", data.choices[0].message.content);
+        // If parsing fails, extract what looks like a recommendation using regex
+        const recommendationMatch = data.choices[0].message.content.match(/"recommendation"\s*:\s*"([^"]*)"/);
+        const scoreMatch = data.choices[0].message.content.match(/"confidenceScore"\s*:\s*([0-9.]*)/);
+        
+        aiResult = {
+          recommendation: recommendationMatch ? recommendationMatch[1] : "Unable to generate recommendation",
+          confidenceScore: scoreMatch ? parseFloat(scoreMatch[1]) : 0.7
+        };
       }
-      // Default logic for other categories
-      else {
-        recommendation = 'Consider market analysis to optimize product positioning';
-        confidenceScore = 0.70;
-      }
-      
+
       return {
         ...product,
-        recommendation,
-        confidenceScore
+        recommendation: aiResult.recommendation || "No recommendation provided",
+        confidenceScore: typeof aiResult.confidenceScore === 'number' ? 
+          Math.min(Math.max(aiResult.confidenceScore, 0), 1) : 0.7
       };
-    });
+    } catch (error) {
+      console.error("Error during product analysis:", error);
+      
+      // Fallback to a default response if the API call fails
+      return {
+        ...product,
+        recommendation: "Error analyzing product. Please try again later.",
+        confidenceScore: 0.5
+      };
+    }
   }
 }
