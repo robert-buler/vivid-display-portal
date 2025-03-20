@@ -1,4 +1,3 @@
-
 import { toast } from "@/components/ui/use-toast";
 
 export interface ProductAnalysis {
@@ -14,11 +13,23 @@ export interface ProductAnalysis {
 export class AIService {
   private static API_URL = "https://api.openai.com/v1/chat/completions";
   private static MODEL = "gpt-4o-mini";
+  
+  private static getApiKey(): string | null {
+    if (import.meta.env.VITE_OPENAI_API_KEY) {
+      return import.meta.env.VITE_OPENAI_API_KEY;
+    }
+    
+    return localStorage.getItem('openai_api_key');
+  }
+  
+  static setApiKey(key: string): void {
+    localStorage.setItem('openai_api_key', key);
+    toast({
+      title: "API Key Saved",
+      description: "Your OpenAI API key has been saved for this session",
+    });
+  }
 
-  /**
-   * Analyzes products based on their category and price
-   * and provides recommendations using real AI
-   */
   static async analyzeProducts(products: Array<{
     id: string;
     name: string;
@@ -27,17 +38,14 @@ export class AIService {
     stock: string;
     status: string;
   }>): Promise<ProductAnalysis[]> {
-    // Show toast to indicate analysis is happening
     toast({
       title: "Analyzing products",
       description: `Processing ${products.length} products with AI`,
     });
 
-    // For safety, limit the number of concurrent API calls
     const batchSize = 5;
     const results: ProductAnalysis[] = [];
 
-    // Process in batches to avoid too many concurrent API calls
     for (let i = 0; i < products.length; i += batchSize) {
       const batch = products.slice(i, i + batchSize);
       const batchPromises = batch.map(product => this.analyzeProduct(product));
@@ -48,9 +56,6 @@ export class AIService {
     return results;
   }
 
-  /**
-   * Analyzes a single product using OpenAI API
-   */
   private static async analyzeProduct(product: {
     id: string;
     name: string;
@@ -60,10 +65,16 @@ export class AIService {
     status: string;
   }): Promise<ProductAnalysis> {
     try {
-      const apiKey = prompt("Please enter your OpenAI API key:", "");
+      let apiKey = this.getApiKey();
       
       if (!apiKey) {
-        throw new Error("API key is required to use real AI analysis");
+        apiKey = prompt("Please enter your OpenAI API key (it will be saved for this session):", "");
+        
+        if (apiKey) {
+          this.setApiKey(apiKey);
+        } else {
+          throw new Error("API key is required to use real AI analysis");
+        }
       }
 
       const systemPrompt = `
@@ -118,13 +129,11 @@ export class AIService {
         throw new Error("Unexpected API response format");
       }
 
-      // Parse the AI response as JSON
       let aiResult;
       try {
         aiResult = JSON.parse(data.choices[0].message.content);
       } catch (e) {
         console.error("Failed to parse AI response:", data.choices[0].message.content);
-        // If parsing fails, extract what looks like a recommendation using regex
         const recommendationMatch = data.choices[0].message.content.match(/"recommendation"\s*:\s*"([^"]*)"/);
         const scoreMatch = data.choices[0].message.content.match(/"confidenceScore"\s*:\s*([0-9.]*)/);
         
@@ -143,7 +152,6 @@ export class AIService {
     } catch (error) {
       console.error("Error during product analysis:", error);
       
-      // Fallback to a default response if the API call fails
       return {
         ...product,
         recommendation: "Error analyzing product. Please try again later.",
