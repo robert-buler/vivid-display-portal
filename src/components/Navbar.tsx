@@ -21,6 +21,9 @@ const Navbar = () => {
           <a href="#features" className="text-sm font-medium transition-colors hover:text-primary">
             Features
           </a>
+          <a href="#product" className="text-sm font-medium transition-colors hover:text-primary">
+            Product
+          </a>
           <a href="#pricing" className="text-sm font-medium transition-colors hover:text-primary">
             Pricing
           </a>
@@ -54,6 +57,9 @@ const Navbar = () => {
           <nav className="flex flex-col space-y-4">
             <a href="#features" className="text-sm font-medium transition-colors hover:text-primary">
               Features
+            </a>
+            <a href="#product" className="text-sm font-medium transition-colors hover:text-primary">
+              Product
             </a>
             <a href="#pricing" className="text-sm font-medium transition-colors hover:text-primary">
               Pricing
