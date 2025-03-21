@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Save, Edit, BrainCircuit } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
 import ProductAnalysis from './ProductAnalysis';
 import { AIService, ProductAnalysis as ProductAnalysisType } from '@/services/aiService';
 
@@ -19,7 +19,6 @@ interface ProductRow {
 }
 
 const Product = () => {
-  const { toast } = useToast();
   const [rows, setRows] = useState<ProductRow[]>([
     { id: '1', name: 'Enterprise API Gateway', category: 'Security', price: '$599', stock: '∞', status: 'Active' },
     { id: '2', name: 'Identity Provider', category: 'Authentication', price: '$399', stock: '∞', status: 'Active' },
@@ -81,6 +80,7 @@ const Product = () => {
       setEditRow(null);
       setEditData(null);
       
+      // If the edited product was the selected one, update the analysis
       if (selectedProduct === editRow) {
         performAnalysis(editData);
       }
@@ -108,20 +108,12 @@ const Product = () => {
   const performAnalysis = async (product: ProductRow) => {
     setIsAnalyzing(true);
     try {
+      // Convert product.id to number and call analyzeProduct
       const analysis = await AIService.analyzeProduct(parseInt(product.id));
       setProductAnalysis(analysis);
       setAnalysisPerformed(true);
-      toast({
-        title: "Analysis Complete",
-        description: `Successfully analyzed ${product.name}`,
-      });
     } catch (error) {
       console.error('Error analyzing product:', error);
-      toast({
-        variant: "destructive",
-        title: "Analysis Failed",
-        description: "Could not analyze the product. Please try again later.",
-      });
     } finally {
       setIsAnalyzing(false);
     }
@@ -130,36 +122,12 @@ const Product = () => {
   const analyzeAllProducts = async () => {
     setIsAnalyzing(true);
     try {
+      // Map product IDs to numbers and call analyzeAllProducts
       const productIds = rows.map(row => parseInt(row.id));
-      const analyses = await AIService.analyzeAllProducts(productIds);
-      
-      if (analyses.length > 0) {
-        setAnalysisPerformed(true);
-        toast({
-          title: "Bulk Analysis Complete",
-          description: `Successfully analyzed ${analyses.length} products`,
-        });
-        
-        if (selectedProduct) {
-          const selectedAnalysis = analyses.find(a => a.productId === parseInt(selectedProduct));
-          if (selectedAnalysis) {
-            setProductAnalysis(selectedAnalysis);
-          }
-        }
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Analysis Failed",
-          description: "No products could be analyzed. Please try again later.",
-        });
-      }
+      await AIService.analyzeAllProducts(productIds);
+      setAnalysisPerformed(true);
     } catch (error) {
       console.error('Error analyzing all products:', error);
-      toast({
-        variant: "destructive",
-        title: "Analysis Failed",
-        description: "Could not analyze products. Please try again later.",
-      });
     } finally {
       setIsAnalyzing(false);
     }
