@@ -108,8 +108,9 @@ const Product = () => {
   const performAnalysis = async (product: ProductRow) => {
     setIsAnalyzing(true);
     try {
-      const analyses = await AIService.analyzeProducts([product]);
-      setProductAnalysis(analyses[0]);
+      // Convert product.id to number and call analyzeProduct
+      const analysis = await AIService.analyzeProduct(parseInt(product.id));
+      setProductAnalysis(analysis);
       setAnalysisPerformed(true);
     } catch (error) {
       console.error('Error analyzing product:', error);
@@ -121,7 +122,9 @@ const Product = () => {
   const analyzeAllProducts = async () => {
     setIsAnalyzing(true);
     try {
-      await AIService.analyzeProducts(rows);
+      // Map product IDs to numbers and call analyzeAllProducts
+      const productIds = rows.map(row => parseInt(row.id));
+      await AIService.analyzeAllProducts(productIds);
       setAnalysisPerformed(true);
     } catch (error) {
       console.error('Error analyzing all products:', error);
