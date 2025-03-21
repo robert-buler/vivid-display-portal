@@ -29,7 +29,7 @@ const ProductAnalysis = ({ analysis, isLoading }: ProductAnalysisProps) => {
             <div className="h-4 bg-gray-200 rounded w-5/6"></div>
             <div className="h-4 bg-gray-200 rounded w-2/3"></div>
           </div>
-          <p className="mt-4 text-gray-500">AI is analyzing product data...</p>
+          <p className="mt-4 text-gray-500">Analysis is processing...</p>
         </CardContent>
       </Card>
     );
@@ -39,9 +39,9 @@ const ProductAnalysis = ({ analysis, isLoading }: ProductAnalysisProps) => {
     return (
       <Card className="w-full h-full min-h-[200px]">
         <CardHeader>
-          <CardTitle className="text-gray-500">AI Analysis</CardTitle>
+          <CardTitle className="text-gray-500">Product Analysis</CardTitle>
           <CardDescription>
-            Select a product to see AI analysis
+            Select a product to see analysis
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center justify-center h-32">
@@ -63,7 +63,7 @@ const ProductAnalysis = ({ analysis, isLoading }: ProductAnalysisProps) => {
     <Card className="w-full">
       <CardHeader>
         <div className="flex justify-between items-center">
-          <CardTitle>AI Analysis</CardTitle>
+          <CardTitle>Product Analysis</CardTitle>
           <Badge variant="outline" className="ml-2">
             {analysis.category}
           </Badge>
@@ -79,7 +79,7 @@ const ProductAnalysis = ({ analysis, isLoading }: ProductAnalysisProps) => {
         </div>
         <div>
           <div className="flex justify-between mb-1">
-            <h4 className="text-sm font-medium">AI Confidence:</h4>
+            <h4 className="text-sm font-medium">Confidence Score:</h4>
             <span className="text-sm text-gray-500">
               {Math.round(analysis.confidenceScore * 100)}%
             </span>

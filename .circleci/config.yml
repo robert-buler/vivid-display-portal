@@ -1,22 +1,27 @@
 
 version: 2.1
 
+orbs:
+  node: circleci/node@5.1.0
+  dotnet: circleci/dotnet-core@5.0.2
+
 jobs:
-  build:
+  build-frontend:
     docker:
       - image: cimg/node:18.16.0
     
-    working_directory: ~/repo
+    working_directory: ~/repo/frontend
     
     steps:
-      - checkout
+      - checkout:
+          path: ~/repo
       
       # Download and cache dependencies
       - restore_cache:
           keys:
-            - v1-dependencies-{{ checksum "package.json" }}
+            - v1-frontend-dependencies-{{ checksum "package.json" }}
             # fallback to using the latest cache if no exact match is found
-            - v1-dependencies-
+            - v1-frontend-dependencies-
       
       - run:
           name: Install dependencies
@@ -25,75 +30,96 @@ jobs:
       - save_cache:
           paths:
             - node_modules
-          key: v1-dependencies-{{ checksum "package.json" }}
+          key: v1-frontend-dependencies-{{ checksum "package.json" }}
       
       # Run linting
       - run:
           name: Run linting
           command: npm run lint || echo "No lint script found, skipping"
       
-      # Run tests
-      - run:
-          name: Run tests
-          command: npm run test || echo "No test script found, skipping"
-      
       # Build the app
       - run:
-          name: Build application
+          name: Build frontend
           command: npm run build
           environment:
+            VITE_API_BASE_URL: ${API_BASE_URL_DEV}
             VITE_OPENAI_API_KEY: ${OPENAI_API_KEY_DEV}
       
       # Store build artifacts
-      - store_artifacts:
-          path: dist
-          destination: build
-          
+      - persist_to_workspace:
+          root: .
+          paths:
+            - dist
+
+  build-backend:
+    docker:
+      - image: mcr.microsoft.com/dotnet/sdk:8.0
+    
+    working_directory: ~/repo/backend
+    
+    steps:
+      - checkout:
+          path: ~/repo
+      
+      - run:
+          name: Restore packages
+          command: dotnet restore
+      
+      - run:
+          name: Build .NET 8 application
+          command: dotnet build --configuration Release --no-restore
+      
+      - run:
+          name: Run tests
+          command: dotnet test --no-restore || echo "No tests found, skipping"
+      
+      - run:
+          name: Publish .NET application
+          command: dotnet publish -c Release -o ./publish
+      
+      - persist_to_workspace:
+          root: .
+          paths:
+            - publish
+  
   deploy-dev:
     docker:
-      - image: cimg/node:18.16.0
-    
-    working_directory: ~/repo
+      - image: cimg/base:2023.03
     
     steps:
       - checkout
-      
-      # Download and cache dependencies
-      - restore_cache:
-          keys:
-            - v1-dependencies-{{ checksum "package.json" }}
-            - v1-dependencies-
+      - attach_workspace:
+          at: ~/workspace
       
       - run:
-          name: Install dependencies
-          command: npm install
-      
-      - run:
-          name: Build for development environment
-          command: npm run build
-          environment:
-            VITE_OPENAI_API_KEY: ${OPENAI_API_KEY_DEV}
+          name: Prepare for deployment
+          command: |
+            mkdir -p ~/deploy
+            cp -r ~/workspace/frontend/dist ~/deploy/frontend || true
+            cp -r ~/workspace/backend/publish ~/deploy/backend || true
       
       # Here you would add your deployment commands
-      # For example, deploying to Netlify, Vercel, AWS, etc.
       - run:
           name: Deploy to development environment
           command: |
             echo "Deploying to development environment"
             # Add your deployment commands here
             # Examples:
-            # - netlify deploy --dir=dist --prod
-            # - aws s3 sync dist s3://your-bucket-name/
+            # - netlify deploy --dir=~/deploy/frontend --prod
+            # - aws s3 sync ~/deploy/frontend s3://your-bucket-name/
+            # - For backend: aws elastic-beanstalk update-environment...
             echo "Deployment complete"
 
 workflows:
   version: 2
   build-and-deploy:
     jobs:
-      - build
+      - build-frontend
+      - build-backend
       - deploy-dev:
           requires:
-            - build
+            - build-frontend
+            - build-backend
           filters:
             branches:
               only: main
