@@ -45,7 +45,8 @@ export class AIService {
       });
 
       if (!response.ok) {
-        throw new Error(`Error analyzing product: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Error analyzing product: ${response.statusText} - ${errorText}`);
       }
 
       return await response.json();
@@ -57,9 +58,25 @@ export class AIService {
 
   static async analyzeAllProducts(productIds: number[]): Promise<ProductAnalysis[]> {
     try {
-      const analyses = await Promise.all(
+      // Use Promise.allSettled instead of Promise.all to prevent one failure from stopping all requests
+      const results = await Promise.allSettled(
         productIds.map(id => this.analyzeProduct(id))
       );
+      
+      // Filter out the fulfilled promises and get their values
+      const analyses = results
+        .filter((result): result is PromiseFulfilledResult<ProductAnalysis> => 
+          result.status === 'fulfilled'
+        )
+        .map(result => result.value);
+      
+      // Log any rejected promises
+      results
+        .filter(result => result.status === 'rejected')
+        .forEach((result: PromiseRejectedResult) => {
+          console.warn('Analysis failed for a product:', result.reason);
+        });
+      
       return analyses;
     } catch (error) {
       console.error('Failed to analyze all products:', error);
