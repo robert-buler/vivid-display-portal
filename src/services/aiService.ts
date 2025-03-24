@@ -36,7 +36,13 @@ export class AIService {
 
   static async analyzeProduct(productId: number): Promise<ProductAnalysis> {
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/products/analyze`, {
+      // Fix the API URL to point to the correct backend endpoint
+      const apiBaseUrl = getApiBaseUrl();
+      const apiUrl = apiBaseUrl ? `${apiBaseUrl}/api/products/analyze` : '/api/products/analyze';
+      
+      console.log(`Analyzing product with ID ${productId}, using URL: ${apiUrl}`);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -46,7 +52,8 @@ export class AIService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Error analyzing product: ${response.statusText} - ${errorText}`);
+        console.error(`Error response details: Status ${response.status}, Text: ${errorText}`);
+        throw new Error(`Error analyzing product: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       return await response.json();
@@ -58,6 +65,8 @@ export class AIService {
 
   static async analyzeAllProducts(productIds: number[]): Promise<ProductAnalysis[]> {
     try {
+      console.log(`Analyzing ${productIds.length} products: ${productIds.join(', ')}`);
+      
       // Use Promise.allSettled instead of Promise.all to prevent one failure from stopping all requests
       const results = await Promise.allSettled(
         productIds.map(id => this.analyzeProduct(id))
@@ -77,6 +86,7 @@ export class AIService {
           console.warn('Analysis failed for a product:', result.reason);
         });
       
+      console.log(`Successfully analyzed ${analyses.length} out of ${productIds.length} products`);
       return analyses;
     } catch (error) {
       console.error('Failed to analyze all products:', error);
